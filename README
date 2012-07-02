@@ -1,0 +1,10 @@
+This is a little collection of erlang programs to benchmark HTTP servers (performance)
+
+	benchmark_close.erl -> Benchmark servers using HTTP/1.0
+	benchmark_keepalive -> Benchmark servers using HTTP/1.1
+
+The syntax is the same for all programs:
+
+erl -noshell -s benchmark_... main <HOST> <PAGE> <PROCESSES> <REQUESTS PER PROCESS>
+
+erl -noshell -s benchmark_keepalive main google.com / 100 50 would create 100 processes, of which every single process requests the root of google.com 50 times.
