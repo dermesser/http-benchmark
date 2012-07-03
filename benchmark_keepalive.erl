@@ -1,18 +1,21 @@
 -module(benchmark_keepalive).
 -compile(export_all).
 
--define(TIMEOUT,200). %% How many milliseconds do we wait before we assume that the answer is complete
+-define(TIMEOUT,300). %% How many milliseconds do we wait before we assume that the answer is complete
+-define(NEXTPROC,75). %% How many milliseconds do we wait between spawning to GETter processes
 
-main([RemoteHost,Page,Procs,Gets]) -> forker(atom_to_list(RemoteHost),atom_to_list(Page),list_to_integer(atom_to_list(Procs)),list_to_integer(atom_to_list(Gets))),
-	register(logproc,spawn(fun logger/0)).
+main([RemoteHost,Page,Procs,Gets]) -> register(logproc,spawn(fun logger/0)),
+	forker(atom_to_list(RemoteHost),atom_to_list(Page),list_to_integer(atom_to_list(Procs)),list_to_integer(atom_to_list(Gets))).
+
 
 forker(_RemoteHost, _Page, 0, _Gets) -> done; %% fork enough processes
 forker(RemoteHost,Page, ToDo,Gets) -> spawn(benchmark_keepalive,benchmark_process,[RemoteHost,Page,Gets]),
-	forker(RemoteHost,Page,ToDo-1,Gets).
+	forker(RemoteHost,Page,ToDo-1,Gets),
+	sleep(?NEXTPROC).
 
 benchmark_process(RemoteHost,Page,Gets) -> %% open a socket, spawn a child which sends the requests and receive the answers
 	{ok,Socket} = gen_tcp:connect(RemoteHost,80,[binary,{packet,0}]),
-	Getproc = spawn(benchmark_keepalive,get_loop,[Socket,RemoteHost,Page,Gets]),
+	Getproc = spawn(?MODULE,get_loop,[Socket,RemoteHost,Page,Gets]),
 	recv_loop(Getproc).
 
 get_loop(Socket,_RemoteHost,_Page,0) -> gen_tcp:close(Socket); %% Send the requests
@@ -32,8 +35,15 @@ recv_loop(Getproc) -> %% Receive the requests and notify the getter process
 	after ?TIMEOUT -> Getproc ! {ok,nextget}, recv_loop(Getproc) %% If we haven't received an answer packet after 200 millisecs, we assume that we have the full page
 	end.
 
-logger() ->
+logger() -> logger(1).
+
+logger(Num) ->
 	receive
-		{logit,Mesg} -> io:format("~s~n",[Mesg]), logger();
-		_ -> logger()
+		{logit,Mesg} -> io:format("~p :: ~s~n",[Num, Mesg]), logger(Num+1);
+		_ -> logger(Num)
+	end.
+
+sleep(Time) ->
+	receive
+	after Time -> ok
 	end.
