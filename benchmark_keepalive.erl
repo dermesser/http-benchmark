@@ -28,11 +28,16 @@ get_loop(Socket,RemoteHost,Page,Gets) ->
 	end.
 
 recv_loop(Getproc) -> %% Receive the requests and notify the getter process
+	{ok,EndofanswerPat} = re:compile("</html>"),
 	receive
 		{tcp_closed,_} -> Getproc ! {ok,closed};
-		{tcp,_Socket,_Data} -> recv_loop(Getproc);
+		{tcp,_Socket,Data} ->
+			case re:run(Data,EndofanswerPat) of
+				{match,_} -> Getproc ! {ok,nextget}, recv_loop(Getproc);
+				nomatch -> recv_loop(Getproc);
+				_ -> recv_loop(Getproc)
+			end;
 		_ -> recv_loop(Getproc)
-	after ?TIMEOUT -> Getproc ! {ok,nextget}, recv_loop(Getproc) %% If we haven't received an answer packet after 200 millisecs, we assume that we have the full page
 	end.
 
 logger() -> logger(1).
