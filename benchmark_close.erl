@@ -14,7 +14,7 @@ forker(RemoteHost,Page, ToDo,Gets) -> spawn(benchmark_close,get_loop,[RemoteHost
 get_loop(_,_,0) -> done;
 get_loop(RemoteHost,Page,Gets) ->
 	logproc ! {logit,"Getting..."},
-	{ok,Socket} = gen_tcp:connect(RemoteHost,8080,[binary,{packet,0}]),
+	{ok,Socket} = gen_tcp:connect(RemoteHost,80,[binary,{packet,0}]),
 	gen_tcp:send(Socket,["GET ",Page," HTTP/1.0\r\nUser-agent: Erlang_benchmark/0.1\r\n\r\n"]),
 	recv_loop(),
 	gen_tcp:close(Socket),
