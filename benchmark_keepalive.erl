@@ -1,8 +1,7 @@
 -module(benchmark_keepalive).
 -compile(export_all).
 
--define(TIMEOUT,300). %% How many milliseconds do we wait before we assume that the answer is complete
--define(NEXTPROC,75). %% How many milliseconds do we wait between spawning to GETter processes
+-define(WAITBETWEENSPAWN,75). %% How many milliseconds do we wait between spawning to GETter processes
 
 main([RemoteHost,Page,Procs,Gets]) -> register(logproc,spawn(fun logger/0)),
 	forker(atom_to_list(RemoteHost),atom_to_list(Page),list_to_integer(atom_to_list(Procs)),list_to_integer(atom_to_list(Gets))).
@@ -11,7 +10,7 @@ main([RemoteHost,Page,Procs,Gets]) -> register(logproc,spawn(fun logger/0)),
 forker(_RemoteHost, _Page, 0, _Gets) -> done; %% fork enough processes
 forker(RemoteHost,Page, ToDo,Gets) -> spawn(benchmark_keepalive,benchmark_process,[RemoteHost,Page,Gets]),
 	forker(RemoteHost,Page,ToDo-1,Gets),
-	sleep(?NEXTPROC).
+	sleep(?WAITBETWEENSPAWN).
 
 benchmark_process(RemoteHost,Page,Gets) -> %% open a socket, spawn a child which sends the requests and receive the answers
 	{ok,Socket} = gen_tcp:connect(RemoteHost,80,[binary,{packet,0}]),
