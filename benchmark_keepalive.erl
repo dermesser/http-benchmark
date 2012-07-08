@@ -3,18 +3,22 @@
 
 -define(WAITBETWEENSPAWN,75). %% How many milliseconds do we wait between spawning to GETter processes
 
-main([RemoteHost,Page,Procs,Gets]) -> register(logproc,spawn(fun logger/0)),
+main([RemoteHost,Page,Procs,Gets]) ->
+	register(logproc,spawn(fun logger/0)),
+	register(stopper,spawn(?MODULE,stopper,[list_to_integer(atom_to_list(Procs))])),
 	forker(atom_to_list(RemoteHost),atom_to_list(Page),list_to_integer(atom_to_list(Procs)),list_to_integer(atom_to_list(Gets))).
 
 
 forker(_RemoteHost, _Page, 0, _Gets) -> done; %% fork enough processes
-forker(RemoteHost,Page, ToDo,Gets) -> spawn(benchmark_keepalive,benchmark_process,[RemoteHost,Page,Gets]),
+forker(RemoteHost,Page, ToDo,Gets) ->
+	spawn(?MODULE,benchmark_process,[RemoteHost,Page,Gets]),
 	forker(RemoteHost,Page,ToDo-1,Gets),
 	sleep(?WAITBETWEENSPAWN).
 
 benchmark_process(RemoteHost,Page,Gets) -> %% open a socket, spawn a child which sends the requests and receive the answers
 	{ok,Socket} = gen_tcp:connect(RemoteHost,80,[binary,{packet,0}]),
 	Getproc = spawn(?MODULE,get_loop,[Socket,RemoteHost,Page,Gets]),
+	stopper ! {newproc,Getproc},
 	recv_loop(Getproc).
 
 get_loop(Socket,_RemoteHost,_Page,0) -> gen_tcp:close(Socket); %% Send the requests
@@ -37,6 +41,24 @@ recv_loop(Getproc) -> %% Receive the requests and notify the getter process
 				_ -> recv_loop(Getproc)
 			end;
 		_ -> recv_loop(Getproc)
+	end.
+
+stopper(0) ->
+	io:format("Terminating http-benchmark...~n"),
+	init:stop();
+stopper(N) ->
+	process_flag(trap_exit,true),
+	receive
+		{'EXIT',From,Reason} ->
+			case Reason of
+				normal -> io:format("~p exited normally~n",[From]);
+				Other  -> io:format("~p exited with status ~p~n",[From,Other])
+			end,
+			stopper(N-1);
+		{newproc,Pid} ->
+			io:format("Process ~p registered~n",[Pid]),
+			link(Pid),
+			stopper(N)
 	end.
 
 logger() -> logger(1).
