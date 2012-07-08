@@ -5,7 +5,7 @@
 
 main([RemoteHost,Page,Procs,Gets]) ->
 	register(logproc,spawn(fun logger/0)),
-	register(stopper,spawn(?MODULE,stopper,[list_to_integer(atom_to_list(Procs))])),
+	register(stopper,spawn(?MODULE,stopper,[-1])),
 	forker(atom_to_list(RemoteHost),atom_to_list(Page),list_to_integer(atom_to_list(Procs)),list_to_integer(atom_to_list(Gets))).
 
 forker(_RemoteHost, _Page, 0, _Gets) -> done;
@@ -27,15 +27,20 @@ get_loop(RemoteHost,Page,Gets) ->
 stopper(0) ->
 	io:format("Terminating http-benchmark...~n"),
 	init:stop();
-stopper(N) ->
+stopper(OrigN) ->
 	process_flag(trap_exit,true),
+	if
+		OrigN /= -1  -> N = OrigN;
+		OrigN =:= -1 -> N = 0
+	end,
+
 	receive
 		{newproc,Pid} ->
-			io:format("Registered process ~p~n",[Pid]),
+			io:format("Registered process ~p (~p Processes alive)~n",[Pid,N+1]),
 			link(Pid),
-			stopper(N);
+			stopper(N+1);
 		{'EXIT',Pid,normal} ->
-			io:format("Process ~p exited normally~n",[Pid]),
+			io:format("Process ~p exited normally (~p Processes alive)~n",[Pid,N-1]),
 			stopper(N-1)
 	end.
 
