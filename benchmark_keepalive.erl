@@ -23,11 +23,12 @@ benchmark_process(RemoteHost,Page,Gets) -> %% open a socket, spawn a child which
 
 get_loop(Socket,_RemoteHost,_Page,0) -> gen_tcp:close(Socket); %% Send the requests
 get_loop(Socket,RemoteHost,Page,Gets) ->
-	logproc ! {logit,"Sending GET"},
+	logproc ! {logit,self(),"Sending GET"},
 	gen_tcp:send(Socket,["GET ",Page," HTTP/1.1\r\nHost: ",RemoteHost,"\r\nUser-agent: Erlang_benchmark/0.1\r\n\r\n"]),
 	receive %% from the receiver loop recv_loop, which is in the controlling process of the socket
 		{ok,nextget} -> get_loop(Socket,RemoteHost,Page,Gets-1); %% Full answer received, start new request
-		{ok,closed} -> closed
+		{ok,closed} -> logproc ! {logit,self(),"Remote host closed connection"},
+			closed
 	end.
 
 recv_loop(Getproc) -> %% Receive the requests and notify the getter process
@@ -56,12 +57,12 @@ stopper(OrigN) ->
 	receive
 		{'EXIT',From,Reason} ->
 			case Reason of
-				normal -> io:format("~p exited normally (~p Processes alive)~n",[From,N-1]);
-				Other  -> io:format("~p exited with status ~p~n",[From,Other])
+				normal -> logproc ! {logit,From,"Exited normally."};
+				_Other  -> logproc ! {errexit,From,Reason,"Exited with non-normal reason: "}
 			end,
 			stopper(N-1);
 		{newproc,Pid} ->
-			io:format("Process ~p registered (~p Processes alive)~n",[Pid,N+1]),
+			logproc ! {logit,Pid,"Registered new getter process"},
 			link(Pid),
 			stopper(N+1)
 	end.
@@ -70,7 +71,8 @@ logger() -> logger(1).
 
 logger(Num) ->
 	receive
-		{logit,Mesg} -> io:format("~p :: ~s~n",[Num, Mesg]), logger(Num+1);
+		{logit,From,Mesg} -> io:format("~p :: ~p :: ~s~n",[Num, From, Mesg]), logger(Num+1);
+		{errexit,From,Reason,Text} -> io:format("~p :: ~p ~s ~p~n",[Num,From,Text,Reason]), logger(Num+1);
 		_ -> logger(Num)
 	end.
 
