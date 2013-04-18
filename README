@@ -8,3 +8,8 @@ The syntax is the same for all programs:
 erl -noshell -s benchmark_... main <HOST> <PAGE> <PROCESSES> <REQUESTS PER PROCESS>
 
 erl -noshell -s benchmark_keepalive main google.com / 100 50 would create 100 processes, of which every single process requests the root of google.com 50 times.
+
+[LICENSE]
+
+This worthless code is licensed under the terms and conditions of the GNU GPL, version 2 or any later version.
+You may view it here: http://www.gnu.org/licenses/gpl.html
